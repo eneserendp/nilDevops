@@ -1,0 +1,26 @@
+# Node sürümünü değiştir
+FROM node:18-alpine
+
+# Timezone ve diğer paketleri yükle
+RUN apk add --no-cache tzdata curl bash
+
+# Timezone'u Türkiye olarak ayarla
+ENV TZ=Europe/Istanbul
+
+WORKDIR /app
+
+# Temel dosyaları kopyala
+COPY package*.json ./
+COPY prisma ./prisma/
+COPY src ./src/
+COPY check-ssl-cron.sh .
+
+# Dependencies yükle ve Prisma client oluştur
+RUN npm install
+RUN npx prisma generate
+
+# Script'i çalıştırılabilir yap
+RUN chmod +x check-ssl-cron.sh
+
+# Cron script'i başlat
+CMD ["/bin/bash", "./check-ssl-cron.sh"]

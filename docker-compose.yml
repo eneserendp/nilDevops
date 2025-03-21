@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - RECIPIENT_EMAIL=${RECIPIENT_EMAIL}
+      - CRON_SECRET=${CRON_SECRET}
+      - NODE_ENV=production
+    volumes:
+      - ./logs:/app/logs
+    restart: always
+
+  cron-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.cron
+    depends_on:
+      - web
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - RECIPIENT_EMAIL=${RECIPIENT_EMAIL}
+      - CRON_SECRET=${CRON_SECRET}
+      - NODE_ENV=production
+    restart: always
+
+networks:
+  default:
+    driver: bridge
