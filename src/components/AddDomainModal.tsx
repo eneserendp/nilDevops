@@ -1,17 +1,20 @@
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment, useState, useEffect } from 'react';
 import { SSLInfo } from '../utils/sslChecker';
+import { useDomains } from '../context/DomainContext';
 
 interface AddDomainModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (manualData?: { validUntil: string; issuer: string }) => void;
+  onConfirm: (manualData?: { validUntil: string; issuer: string }) => Promise<boolean>;
   domain: string;
   sslInfo?: SSLInfo; // null yerine undefined kullanıyoruz
   error?: string | null;
 }
 
 export function AddDomainModal({ isOpen, onClose, onConfirm, domain, sslInfo, error }: AddDomainModalProps) {
+  const { fetchDomains } = useDomains();
+  
   const [isManualMode, setIsManualMode] = useState(!sslInfo || !!error);
   const [manualValidUntil, setManualValidUntil] = useState('');
   const [manualIssuer, setManualIssuer] = useState('');
@@ -25,14 +28,20 @@ export function AddDomainModal({ isOpen, onClose, onConfirm, domain, sslInfo, er
     }
   }, [isOpen, sslInfo, error]);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    let success;
     if (isManualMode) {
-      onConfirm({
+      success = await onConfirm({
         validUntil: manualValidUntil,
         issuer: manualIssuer
       });
     } else {
-      onConfirm();
+      success = await onConfirm();
+    }
+    
+    if (success) {
+      await fetchDomains(); // Başarılı ekleme sonrası listeyi yenile
+      onClose();
     }
   };
 

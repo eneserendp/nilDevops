@@ -30,6 +30,15 @@ export function UpdateDomainModal({
   const [manualIssuer, setManualIssuer] = useState('');
   const [manualDomainExpiry, setManualDomainExpiry] = useState(''); // Add this
 
+  const handleAutoUpdateClick = async () => {
+    try {
+      await onAutoUpdate();
+      window.location.reload(); // Otomatik güncelleme sonrası sayfayı yenile
+    } catch (error) {
+      console.error('Error during auto update:', error);
+    }
+  };
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-10" onClose={onClose}>
@@ -105,7 +114,7 @@ export function UpdateDomainModal({
                       </h3>
                       
                       <button
-                        onClick={onAutoUpdate}
+                        onClick={handleAutoUpdateClick}
                         disabled={isUpdating}
                         className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
                       >

@@ -1,17 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { SSLInfo } from '../utils/sslChecker';
-
-interface DomainData {
-  domain: string;
-  sslInfo: SSLInfo;
-  addedAt: string;
-}
+import { DomainData } from '../types/domain';
 
 interface DomainContextType {
   domains: DomainData[];
-  addDomain: (domain: string, sslInfo: SSLInfo) => void;
-  removeDomain: (domain: string) => void;
+  addDomain: (domain: string, sslInfo: SSLInfo) => Promise<boolean>;
+  removeDomain: (domain: string) => Promise<void>;
   updateDomain: (domain: string, manualSslInfo?: SSLInfo) => Promise<void>;
+  fetchDomains: () => Promise<void>; // Yeni eklendi
 }
 
 const DomainContext = createContext<DomainContextType | undefined>(undefined);
@@ -43,11 +39,13 @@ export function DomainProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.ok) {
-        const newDomain = await response.json();
-        setDomains(prev => [...prev, newDomain]);
+        await fetchDomains(); // Listeyi yenile
+        return true; // Return success status
       }
+      return false;
     } catch (error) {
       console.error('Error adding domain:', error);
+      return false;
     }
   };
 
@@ -96,7 +94,7 @@ export function DomainProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <DomainContext.Provider value={{ domains, addDomain, removeDomain, updateDomain }}>
+    <DomainContext.Provider value={{ domains, addDomain, removeDomain, updateDomain, fetchDomains }}>
       {children}
     </DomainContext.Provider>
   );

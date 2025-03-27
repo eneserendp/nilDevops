@@ -13,7 +13,7 @@ export default function Home() {
   const [sslInfo, setSSLInfo] = useState<SSLInfo | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false);
-  const { addDomain } = useDomains();
+  const { addDomain, fetchDomains } = useDomains();
 
   const handleSearch = async () => {
     if (!domain) return;
@@ -48,8 +48,9 @@ export default function Home() {
     }
   }
 
-  const handleAddDomain = (manualData?: { validUntil: string; issuer: string }) => {
+  const handleAddDomain = async (manualData?: { validUntil: string; issuer: string }) => {
     if (domain) {
+      let success = false;
       if (manualData) {
         // Manuel girilen verilerle SSL bilgisi oluştur
         const manualSslInfo: SSLInfo = {
@@ -59,12 +60,23 @@ export default function Home() {
           daysRemaining: Math.floor((new Date(manualData.validUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
           issuer: manualData.issuer
         };
-        addDomain(domain, manualSslInfo);
+        success = await addDomain(domain, manualSslInfo);
       } else if (sslInfo) {
-        addDomain(domain, sslInfo);
+        success = await addDomain(domain, sslInfo);
       }
-      setShowModal(false);
+
+      if (success) {
+        await fetchDomains(); // Önce verileri güncelle
+        setShowModal(false); // Sonra modalı kapat
+        setDomain(''); // Formu temizle
+        window.location.reload(); // En son sayfayı yenile
+      }
     }
+    return true;
+  };
+
+  const handleDomainAdded = async () => {
+    await fetchDomains();
   };
 
   return (
