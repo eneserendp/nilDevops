@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDomains } from '../context/DomainContext';
 import { AddDomainModal } from './AddDomainModal';
+import { SSLInfo } from '../utils/sslChecker';  // SSLInfo tipi import edildi
 
 interface DomainFormProps {
   onDomainAdded: () => Promise<void>;
@@ -11,7 +12,7 @@ export function DomainForm({ onDomainAdded }: DomainFormProps) {
   const [domain, setDomain] = useState('');
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [sslInfo, setSslInfo] = useState<SSLInfo | null>(null);
+  const [sslInfo, setSslInfo] = useState<SSLInfo | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,6 +36,7 @@ export function DomainForm({ onDomainAdded }: DomainFormProps) {
       setShowAddModal(true);
     } catch (error) {
       setError('Failed to fetch SSL information. Please try again.');
+      setSslInfo(undefined);
       setShowAddModal(true);
     } finally {
       setLoading(false);

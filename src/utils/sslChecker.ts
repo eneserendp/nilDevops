@@ -1,12 +1,16 @@
 import * as https from 'https';
 import * as tls from 'tls';
 
+// Ana SSLInfo interface tanımı burada olacak
 export interface SSLInfo {
   valid: boolean;
   validFrom: string;
   validTo: string;
-  daysRemaining: number; // number tipini kesin olarak belirt
+  daysRemaining: number;
   issuer: string;
+  domainExpiryDate?: string;
+  registrar?: string;
+  lastChecked?: string;
 }
 
 export const checkSSL = (domain: string): Promise<SSLInfo> => {
@@ -25,63 +29,56 @@ export const checkSSL = (domain: string): Promise<SSLInfo> => {
 
       if (peerCertificate) {
         try {
+          // Geçerli tarih aralığını kontrol et
           const validFrom = new Date(peerCertificate.valid_from);
           const validTo = new Date(peerCertificate.valid_to);
           const now = new Date();
 
-          // Tarihleri UTC'ye çevir
-          const validToUTC = Date.UTC(
-            validTo.getUTCFullYear(),
-            validTo.getUTCMonth(),
-            validTo.getUTCDate(),
-            validTo.getUTCHours(),
-            validTo.getUTCMinutes(),
-            validTo.getUTCSeconds()
+          // Tarihlerin geçerli olup olmadığını kontrol et
+          if (isNaN(validFrom.getTime()) || isNaN(validTo.getTime())) {
+            reject(new Error('Invalid certificate dates'));
+            return;
+          }
+
+          const daysRemaining = Math.floor(
+            (validTo.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
           );
 
-          const nowUTC = Date.UTC(
-            now.getUTCFullYear(),
-            now.getUTCMonth(),
-            now.getUTCDate(),
-            now.getUTCHours(),
-            now.getUTCMinutes(),
-            now.getUTCSeconds()
-          );
-
-          // Kalan günleri hesapla
-          const daysRemaining = Math.floor((validToUTC - nowUTC) / (1000 * 60 * 60 * 24));
-
-          console.log('SSL Check Details:', {
-            domain,
-            validFrom: validFrom.toISOString(),
-            validTo: validTo.toISOString(),
-            now: now.toISOString(),
-            daysRemaining
-          });
-
-          resolve({
+          const sslInfo: SSLInfo = {
             valid: daysRemaining > 0,
             validFrom: validFrom.toISOString(),
             validTo: validTo.toISOString(),
             daysRemaining,
             issuer: peerCertificate.issuer?.CN || 'Unknown',
+            lastChecked: now.toISOString()
+          };
+
+          console.log('SSL Check Details:', {
+            domain,
+            validFrom: sslInfo.validFrom,
+            validTo: sslInfo.validTo,
+            now: now.toISOString(),
+            daysRemaining: sslInfo.daysRemaining
           });
+
+          resolve(sslInfo);
         } catch (error) {
-          console.error('SSL parsing error:', error);
-          reject(new Error('Failed to parse SSL certificate dates'));
+          console.error('SSL parsing error for domain:', domain, error);
+          reject(new Error(`Failed to parse SSL certificate dates for ${domain}`));
         }
       } else {
-        reject(new Error('No SSL certificate found'));
+        reject(new Error(`No SSL certificate found for ${domain}`));
       }
     });
 
     req.on('error', (e) => {
-      reject(new Error(`SSL check failed: ${e.message}`));
+      console.error(`SSL check failed for ${domain}:`, e.message);
+      reject(new Error(`SSL check failed for ${domain}: ${e.message}`));
     });
 
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('SSL check timed out'));
+      reject(new Error(`SSL check timed out for ${domain}`));
     });
 
     req.end();

@@ -71,19 +71,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const expiringDomains = await prisma.monitoredDomain.findMany({
       where: {
         OR: [
-          // SSL expiry check
+          // SSL süresi kontrolü
           {
             sslInfo: {
               path: ['daysRemaining'],
-              lte: sslWarningThreshold,
-              gt: 0
+              lt: sslWarningThreshold
             }
           },
-          // Domain expiry check
+          // Domain süresi kontrolü
           {
             sslInfo: {
               path: ['domainExpiryDate'],
-              not: null
+              // Prisma JSON filtresi için uygun syntax
+              gt: ''  // Boş string kontrolü yerine
             }
           }
         ]
@@ -126,9 +126,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       emailsSentTo: settings?.recipients?.length || 0
     });
   } catch (error: any) { // Error tipini belirttik
-    console.error('❌ Error:', error?.message || 'Unknown error');
+    console.error('Cron job error:', error);
     return res.status(500).json({ 
-      error: 'Error checking expiry dates',
+      error: 'Error in cron job',
       details: error?.message 
     });
   }
