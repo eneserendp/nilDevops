@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../lib/prisma';
 import { sendExpiryNotification } from '../../../utils/emailService';
 import { checkSSL } from '../../../utils/sslChecker';
+import { checkWhois } from '../../../utils/whoisChecker';
 import { Prisma } from '@prisma/client';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -24,27 +25,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Sadece saat eşleştiğinde veya hata durumunda log bas
     if (scheduledTime === currentTime) {
-      console.log(`🕒 Scheduled time reached: ${scheduledTime}`);
-      console.log('🔄 Starting daily SSL updates...');
+      console.log('🔄 Starting daily updates...');
       
-      // Her domain için SSL bilgilerini güncelle
       const allDomains = await prisma.monitoredDomain.findMany();
-      console.log(`Found ${allDomains.length} domains to update`);
       
       for (const domain of allDomains) {
         try {
-          console.log(`Updating SSL info for ${domain.domain}...`);
-          const oldDaysRemaining = (domain.sslInfo as any).daysRemaining;
+          console.log(`Updating info for ${domain.domain}...`);
+          const oldSslInfo = domain.sslInfo as any;
           
-          const updatedSslInfo = await checkSSL(domain.domain);
+          // SSL ve WHOIS bilgilerini paralel kontrol et
+          const [sslInfo, whoisInfo] = await Promise.all([
+            checkSSL(domain.domain),
+            checkWhois(domain.domain)
+          ]);
           
-          // SSLInfo'yu Prisma JsonValue formatına çevir
+          // Bilgileri birleştir
           const sslInfoJson: Prisma.JsonObject = {
-            valid: updatedSslInfo.valid,
-            validFrom: updatedSslInfo.validFrom,
-            validTo: updatedSslInfo.validTo,
-            daysRemaining: updatedSslInfo.daysRemaining,
-            issuer: updatedSslInfo.issuer
+            ...sslInfo,
+            domainExpiryDate: whoisInfo.domainExpiryDate,
+            registrar: whoisInfo.registrar,
+            lastChecked: new Date().toISOString()
           };
 
           await prisma.monitoredDomain.update({
@@ -55,13 +56,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
           });
           
-          console.log(`✅ ${domain.domain}: ${oldDaysRemaining} days -> ${updatedSslInfo.daysRemaining} days`);
+          console.log(`✅ ${domain.domain} updated:`, {
+            sslDays: `${oldSslInfo?.daysRemaining} -> ${sslInfo.daysRemaining}`,
+            domainExpiry: whoisInfo.domainExpiryDate,
+            registrar: whoisInfo.registrar
+          });
         } catch (error) {
           console.error(`❌ Failed to update ${domain.domain}:`, error);
         }
       }
-      
-      console.log('🏁 Daily SSL updates completed');
     }
 
     if (scheduledTime !== currentTime) {
@@ -92,14 +95,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const domainsToNotify = expiringDomains.filter(domain => {
       const sslInfo = domain.sslInfo as any;
-      const sslDaysRemaining = sslInfo.daysRemaining;
       
-      // Domain expiry days calculation
+      // SSL ve domain sürelerini kontrol et
+      const sslDaysRemaining = sslInfo.daysRemaining;
       const domainExpiryDate = sslInfo.domainExpiryDate ? new Date(sslInfo.domainExpiryDate) : null;
-      const now = new Date();
       const domainDaysRemaining = domainExpiryDate 
-        ? Math.ceil((domainExpiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        ? Math.ceil((domainExpiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
         : null;
+
+      console.log(`Checking expiry for ${domain.domain}:`, {
+        sslDaysRemaining,
+        domainDaysRemaining,
+        domainExpiryDate: sslInfo.domainExpiryDate
+      });
 
       return (
         (sslDaysRemaining > 0 && sslDaysRemaining <= sslWarningThreshold) ||

@@ -16,7 +16,7 @@ const modules = [
     color: "blue"
   },
   {
-    title: "Sistem Devir",
+    title: "Sistem Devir Burakkkkk",
     description: "Sistem devir takip ve yönetimi",
     icon: ArrowPathIcon,
     path: "/system-transfer",

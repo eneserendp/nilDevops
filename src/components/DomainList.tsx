@@ -5,7 +5,7 @@ import { UpdateDomainModal } from './UpdateDomainModal';
 import { DomainData } from '../types/domain'; // Yeni import
 
 export function DomainList() {
-  const { domains, removeDomain, updateDomain, fetchDomains } = useDomains();
+  const { domains, removeDomain, updateDomain } = useDomains();
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'valid' | 'invalid'>('all');
@@ -16,8 +16,6 @@ export function DomainList() {
 
   // Filtered domains based on search and status - Update the filtering logic
   const filteredDomains = useMemo(() => {
-    if (!Array.isArray(domains)) return [];
-    
     return domains.filter(({ domain, sslInfo }) => {
       const matchesSearch = domain.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = filterStatus === 'all' 
@@ -75,10 +73,13 @@ export function DomainList() {
       const newSslInfo = await response.json();
       
       // Update both SSL and domain information
-      await updateDomain(domain, newSslInfo);
-      await fetchDomains(); // Liste güncellendikten sonra yenile
+      await updateDomain(domain, {
+        ...newSslInfo,
+        domainExpiryDate: newSslInfo.domainExpiryDate,
+        registrar: newSslInfo.registrar
+      });
+      
       setShowUpdateModal(false);
-      window.location.reload(); // Sayfayı yenile
     } catch (error) {
       console.error('Error auto updating:', error);
     } finally {
@@ -109,10 +110,6 @@ export function DomainList() {
         console.error('Error manual updating:', error);
       }
     }
-  };
-
-  const handleDomainAdded = async () => {
-    await fetchDomains(); // Listeyi yenile
   };
 
   if (domains.length === 0) return null;
@@ -232,10 +229,7 @@ export function DomainList() {
       {selectedDomain && (
         <UpdateDomainModal
           isOpen={showUpdateModal}
-          onClose={() => {
-            setShowUpdateModal(false);
-            handleDomainAdded(); // Modal kapandığında listeyi yenile
-          }}
+          onClose={() => setShowUpdateModal(false)}
           onConfirm={handleManualUpdate}
           onAutoUpdate={() => handleAutoUpdate(selectedDomain.domain)}
           domain={selectedDomain.domain}
